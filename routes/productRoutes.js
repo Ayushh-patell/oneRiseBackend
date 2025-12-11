@@ -19,17 +19,37 @@ router.post("/create", isAdmin, upload, async (req, res) => {
       additionalInfo,
       colorOptions,
       colorRequired, // "true"/"false" or boolean
+      attributes,    // NEW: JSON string of [{ name, options: [...] }]
     } = req.body;
 
     // Parse color options (array of { colorName, price? })
-    const parsedColors = colorOptions ? JSON.parse(colorOptions) : [];
+    let parsedColors = [];
+    if (colorOptions) {
+      try {
+        parsedColors = JSON.parse(colorOptions);
+      } catch (e) {
+        console.error("Failed to parse colorOptions JSON", e);
+      }
+    }
+
+    // Parse attributes (array of { name, options: [String] })
+    let parsedAttributes = [];
+    if (attributes) {
+      try {
+        parsedAttributes = JSON.parse(attributes);
+      } catch (e) {
+        console.error("Failed to parse attributes JSON", e);
+      }
+    }
 
     let imageURLs = [];
     let colorImageURLs = [];
 
     // ==== MAIN IMAGES ====
     if (req.files?.images) {
-      imageURLs = await compressAndSaveImages(req.files.images || req.files["images"]);
+      imageURLs = await compressAndSaveImages(
+        req.files.images || req.files["images"]
+      );
     }
 
     // ==== COLOR IMAGES ====
@@ -60,6 +80,7 @@ router.post("/create", isAdmin, upload, async (req, res) => {
       colorOptions: finalColorOptions,
       colorRequired:
         colorRequired === true || colorRequired === "true" ? true : false,
+      attributes: parsedAttributes, // NEW
     });
 
     res.json({ msg: "Product created", product });
@@ -81,13 +102,7 @@ router.post("/create", isAdmin, upload, async (req, res) => {
 --------------------------------*/
 router.get("/", async (req, res) => {
   try {
-    let {
-      category,
-      page = "1",
-      limit = "12",
-      minPrice,
-      maxPrice,
-    } = req.query;
+    let { category, page = "1", limit = "12", minPrice, maxPrice } = req.query;
 
     // pagination
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
@@ -212,6 +227,17 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
       imageURL: c.existingImage || null,
     }));
 
+    // Parse attributes JSON
+    // expected shape: [{ name, options: [String] }]
+    let parsedAttributes = [];
+    if (data.attributes) {
+      try {
+        parsedAttributes = JSON.parse(data.attributes);
+      } catch (e) {
+        console.error("Failed to parse attributes JSON", e);
+      }
+    }
+
     const updateFields = {
       name: data.name,
       desc: data.desc,
@@ -224,6 +250,7 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
           ? true
           : false,
       colorOptions,
+      attributes: parsedAttributes, // NEW
     };
 
     // ---- MAIN IMAGES ----

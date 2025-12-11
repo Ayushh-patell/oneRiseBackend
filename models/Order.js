@@ -1,11 +1,28 @@
 // models/Order.js
 import mongoose from "mongoose";
 
+// chosen attribute per item, e.g. { name: "Size", value: "Large" }
+const attributeSelectionSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    value: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const orderItemSchema = new mongoose.Schema(
   {
     productId: { type: String, required: true }, // your product id or SKU
     name: { type: String, required: true },
     colorName: { type: String },
+
+    // NEW: selected attributes for this line item
+    // e.g. [{ name: "Size", value: "Large" }, { name: "Material", value: "Cotton" }]
+    attributes: {
+      type: [attributeSelectionSchema],
+      default: [],
+    },
+
     quantity: { type: Number, required: true },
     unitPrice: { type: Number, required: true }, // in major units, e.g. 499.99
     lineTotal: { type: Number, required: true }, // unitPrice * quantity
@@ -50,10 +67,10 @@ const orderSchema = new mongoose.Schema(
       default: "pending",
     },
 
-    // Stripe refs
-    stripeSessionId: { type: String, index: true },
-    stripePaymentIntentId: { type: String },
-    stripeCustomerId: { type: String },
+    // PayPal refs (Stripe removed)
+    paypalOrderId: { type: String, index: true },     // the PayPal order ID
+    paypalCaptureId: { type: String },                // capture/transaction ID
+    paypalPayerId: { type: String },                  // payer ID from PayPal
 
     notes: { type: String },
   },

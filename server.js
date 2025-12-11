@@ -11,6 +11,7 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import checkoutRoutes from "./routes/checkoutRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import couponRoutes from "./routes/couponRoutes.js";
 
 connectDB();
 
@@ -37,6 +38,8 @@ app.use("/api/blog", blogRoutes);
 app.use("/api/checkout", checkoutRoutes);
 
 app.use("/api/orders", orderRoutes);
+
+app.use("/api/coupons", couponRoutes);
 
 app.get("/", (req, res) => {
     res.send("API Running...");

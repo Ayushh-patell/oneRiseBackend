@@ -6,6 +6,15 @@ const colorOptionSchema = new mongoose.Schema({
   imageURL: { type: String },     // optional image per color
 });
 
+// attribute: e.g. { name: "Size", options: ["S", "M", "L"] }
+const attributeSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    options: { type: [String], required: true },
+  },
+  { _id: false }
+);
+
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -24,6 +33,9 @@ const productSchema = new mongoose.Schema(
 
     // NEW: if true, user must select a color before adding to cart
     colorRequired: { type: Boolean, default: false },
+
+    // NEW: generic attributes like Size, Material, etc.
+    attributes: [attributeSchema],
 
     ratings: [
       {

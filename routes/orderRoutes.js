@@ -30,6 +30,10 @@ router.get("/", isAdmin, async (req, res) => {
       .lean()
       .exec();
 
+    // orders already include:
+    // - items[].attributes
+    // - paypalOrderId / paypalCaptureId / paypalPayerId
+    // - notes
     return res.json({
       total,
       page: pageToUse,
@@ -53,6 +57,8 @@ router.get("/by-email/:email", isAdmin, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+
+    // each order includes attributes + PayPal fields automatically
     return res.json({ orders });
   } catch (err) {
     console.error("Error fetching orders by email:", err);
@@ -68,6 +74,7 @@ router.get("/:id", isAdmin, async (req, res) => {
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
+    // order includes items[].attributes + PayPal fields + notes
     return res.json({ order });
   } catch (err) {
     console.error("Error fetching order by id:", err);
@@ -76,14 +83,35 @@ router.get("/:id", isAdmin, async (req, res) => {
 });
 
 // PATCH /api/orders/:id
-// Update order status / paymentStatus (admin)
+// Update order status / paymentStatus and PayPal refs / notes (admin)
 router.patch("/:id", isAdmin, async (req, res) => {
   try {
-    const { orderStatus, paymentStatus } = req.body;
+    const {
+      orderStatus,
+      paymentStatus,
+      paypalOrderId,
+      paypalCaptureId,
+      paypalPayerId,
+      notes,
+    } = req.body;
 
     const update = {};
+
+    // statuses
     if (orderStatus) update.orderStatus = orderStatus;
     if (paymentStatus) update.paymentStatus = paymentStatus;
+
+    // PayPal references (optional)
+    if (paypalOrderId) update.paypalOrderId = paypalOrderId;
+    if (paypalCaptureId) update.paypalCaptureId = paypalCaptureId;
+    if (paypalPayerId) update.paypalPayerId = paypalPayerId;
+
+    // notes (optional)
+    if (typeof notes === "string") update.notes = notes;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
