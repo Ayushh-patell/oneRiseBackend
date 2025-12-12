@@ -6,12 +6,16 @@ const colorOptionSchema = new mongoose.Schema({
   imageURL: { type: String },     // optional image per color
 });
 
+const optionsSchema = new mongoose.Schema({
+  label: {type:String},
+  price: {type:Number, default:0},
+})
+
 // attribute: e.g. { name: "Size", options: ["S", "M", "L"] }
 const attributeSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    options: { type: [String], required: true },
-    price: { type: Number, default:0 },
+    options: { optionsSchema, required: true },
   },
   { _id: false }
 );
