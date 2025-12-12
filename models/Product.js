@@ -1,28 +1,34 @@
 import mongoose from "mongoose";
 
-const colorOptionSchema = new mongoose.Schema({
-  colorName: { type: String, required: true },
-  price: { type: Number },        // optional per-color price override
-  imageURL: { type: String },     // optional image per color
-});
+const colorOptionSchema = new mongoose.Schema(
+  {
+    colorName: { type: String, required: true },
+    price: { type: Number }, // optional per-color price override
+    imageURL: { type: String }, // optional image per color
+  },
+  { _id: false }
+);
 
-const optionsSchema = new mongoose.Schema({
-  label: {type:String},
-  price: {type:Number, default:0},
-})
+const optionSchema = new mongoose.Schema(
+  {
+    label: { type: String, required: true, trim: true },
+    price: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false }
+);
 
-// attribute: e.g. { name: "Size", options: ["S", "M", "L"] }
+// attribute: e.g. { name: "Size", options: [{label:"S",price:0},{label:"M",price:50}] }
 const attributeSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    options: { optionsSchema, required: true },
+    name: { type: String, required: true, trim: true },
+    options: { type: [optionSchema], required: true, default: [] }, // ✅ array of {label, price}
   },
   { _id: false }
 );
 
 const productSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
     desc: { type: String },
     longDesc: { type: String },
     category: { type: String, required: true },
@@ -34,13 +40,13 @@ const productSchema = new mongoose.Schema(
 
     imageURLs: [{ type: String }],
 
-    colorOptions: [colorOptionSchema], // optional colors with optional image/price
+    colorOptions: { type: [colorOptionSchema], default: [] },
 
-    // NEW: if true, user must select a color before adding to cart
+    // if true, user must select a color before adding to cart
     colorRequired: { type: Boolean, default: false },
 
-    // NEW: generic attributes like Size, Material, etc.
-    attributes: [attributeSchema],
+    // generic attributes like Size, Material, etc.
+    attributes: { type: [attributeSchema], default: [] },
 
     ratings: [
       {
