@@ -122,12 +122,11 @@ router.post("/create", isAdmin, upload, async (req, res) => {
 /* ------------------------------
    GET PRODUCTS
    Query params:
-     - category (optional): filter by category name
+     - category (optional): filter by category (handles spaces/+)
      - page     (optional): page number (default 1)
      - limit    (optional): items per page (default 12)
      - minPrice (optional): minimum price (inclusive)
      - maxPrice (optional): maximum price (inclusive)
-   NOTE: price range checks both base price AND colorOptions.price
 --------------------------------*/
 router.get("/", async (req, res) => {
   try {
@@ -140,30 +139,30 @@ router.get("/", async (req, res) => {
 
     const filter = {};
 
-    // category filter (exact match; change to regex if you want case-insensitive)
+    // ✅ category filter (fix "Kitchen+Sink" / spaces)
+    // Express query parsing already turns + into space in most cases,
+    // but this makes it bulletproof for mixed encodings.
     if (category) {
-      filter.category = category;
-      // case-insensitive example:
-      // filter.category = new RegExp(`^${category}$`, "i");
+      const decoded = decodeURIComponent(String(category)).replace(/\+/g, " ").trim();
+
+      // Exact (case-insensitive) match:
+      filter.category = new RegExp(`^${decoded.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+
+      // If you want "contains" match instead, use:
+      // filter.category = new RegExp(decoded.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     }
 
     // price filter (checks both product.price and colorOptions.price)
-    let min =
-      minPrice !== undefined && minPrice !== "" ? Number(minPrice) : null;
-    let max =
-      maxPrice !== undefined && maxPrice !== "" ? Number(maxPrice) : null;
+    let min = minPrice !== undefined && minPrice !== "" ? Number(minPrice) : null;
+    let max = maxPrice !== undefined && maxPrice !== "" ? Number(maxPrice) : null;
 
-    if (
-      (min !== null && Number.isNaN(min)) ||
-      (max !== null && Number.isNaN(max))
-    ) {
+    if ((min !== null && Number.isNaN(min)) || (max !== null && Number.isNaN(max))) {
       return res
         .status(400)
         .json({ message: "minPrice and maxPrice must be valid numbers" });
     }
 
     if (min !== null && max !== null && min > max) {
-      // swap to be forgiving
       const temp = min;
       min = max;
       max = temp;
@@ -174,7 +173,6 @@ router.get("/", async (req, res) => {
       if (min !== null) priceRange.$gte = min;
       if (max !== null) priceRange.$lte = max;
 
-      // match either base price or any colorOptions.price in range
       filter.$or = [
         { price: priceRange },
         { colorOptions: { $elemMatch: { price: priceRange } } },
@@ -182,15 +180,12 @@ router.get("/", async (req, res) => {
     }
 
     const [products, total] = await Promise.all([
-      Product.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNumber),
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNumber),
       Product.countDocuments(filter),
     ]);
 
     res.json({
-      total, // total items matching filter
+      total,
       page: pageNumber,
       limit: limitNumber,
       pages: Math.max(Math.ceil(total / limitNumber), 1),
@@ -201,6 +196,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server error fetching products" });
   }
 });
+
 
 /* -------------------------------
    GET PRODUCT BY ID
