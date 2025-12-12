@@ -4,7 +4,6 @@ import { upload, compressAndSaveImages } from "../middleware/upload.js";
 import { isAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-
 /* -------------------------------
    CREATE PRODUCT
 --------------------------------*/
@@ -19,10 +18,10 @@ router.post("/create", isAdmin, upload, async (req, res) => {
       additionalInfo,
       colorOptions,
       colorRequired, // "true"/"false" or boolean
-      attributes,    // NEW: JSON string of [{ name, options: [...] }]
+      attributes, // UPDATED: JSON string of [{ name, options: [{label, price}] }]
     } = req.body;
 
-    // Parse color options (array of { colorName, price? })
+    // Parse color options (array of { colorName, price?, existingImage? })
     let parsedColors = [];
     if (colorOptions) {
       try {
@@ -32,11 +31,40 @@ router.post("/create", isAdmin, upload, async (req, res) => {
       }
     }
 
-    // Parse attributes (array of { name, options: [String] })
+    // Parse attributes (array of { name, options: [{label, price}] })
     let parsedAttributes = [];
     if (attributes) {
       try {
-        parsedAttributes = JSON.parse(attributes);
+        const raw = JSON.parse(attributes);
+
+        // sanitize + backward compat if options are strings
+        parsedAttributes = Array.isArray(raw)
+          ? raw
+              .filter((a) => a && typeof a.name === "string" && a.name.trim())
+              .map((a) => {
+                const options = Array.isArray(a.options) ? a.options : [];
+
+                const normalizedOptions = options
+                  .map((opt) => {
+                    if (typeof opt === "string") {
+                      return { label: opt.trim(), price: 0 };
+                    }
+                    if (opt && typeof opt === "object") {
+                      const label = String(opt.label || "").trim();
+                      const n = Number(opt.price);
+                      return {
+                        label,
+                        price: Number.isFinite(n) ? n : 0,
+                      };
+                    }
+                    return null;
+                  })
+                  .filter((o) => o && o.label);
+
+                return { name: a.name.trim(), options: normalizedOptions };
+              })
+              .filter((a) => a.options.length > 0)
+          : [];
       } catch (e) {
         console.error("Failed to parse attributes JSON", e);
       }
@@ -80,7 +108,7 @@ router.post("/create", isAdmin, upload, async (req, res) => {
       colorOptions: finalColorOptions,
       colorRequired:
         colorRequired === true || colorRequired === "true" ? true : false,
-      attributes: parsedAttributes, // NEW
+      attributes: parsedAttributes, // UPDATED
     });
 
     res.json({ msg: "Product created", product });
@@ -89,6 +117,7 @@ router.post("/create", isAdmin, upload, async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 });
+
 
 /* ------------------------------
    GET PRODUCTS
@@ -188,6 +217,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+
 /* -------------------------------
    UPDATE PRODUCT
 --------------------------------*/
@@ -206,8 +236,7 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
     }
 
     // Parse color options JSON
-    // expected shape from frontend per color:
-    // { colorName, price, existingImage }
+    // expected shape per color: { colorName, price, existingImage }
     let colorOptionsRaw = [];
     if (data.colorOptions) {
       try {
@@ -228,11 +257,40 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
     }));
 
     // Parse attributes JSON
-    // expected shape: [{ name, options: [{label, price}], }]
+    // expected shape: [{ name, options: [{label, price}] }]
     let parsedAttributes = [];
     if (data.attributes) {
       try {
-        parsedAttributes = JSON.parse(data.attributes);
+        const raw = JSON.parse(data.attributes);
+
+        // sanitize + backward compat if options are strings
+        parsedAttributes = Array.isArray(raw)
+          ? raw
+              .filter((a) => a && typeof a.name === "string" && a.name.trim())
+              .map((a) => {
+                const options = Array.isArray(a.options) ? a.options : [];
+
+                const normalizedOptions = options
+                  .map((opt) => {
+                    if (typeof opt === "string") {
+                      return { label: opt.trim(), price: 0 };
+                    }
+                    if (opt && typeof opt === "object") {
+                      const label = String(opt.label || "").trim();
+                      const n = Number(opt.price);
+                      return {
+                        label,
+                        price: Number.isFinite(n) ? n : 0,
+                      };
+                    }
+                    return null;
+                  })
+                  .filter((o) => o && o.label);
+
+                return { name: a.name.trim(), options: normalizedOptions };
+              })
+              .filter((a) => a.options.length > 0)
+          : [];
       } catch (e) {
         console.error("Failed to parse attributes JSON", e);
       }
@@ -250,7 +308,7 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
           ? true
           : false,
       colorOptions,
-      attributes: parsedAttributes, // NEW
+      attributes: parsedAttributes, // UPDATED
     };
 
     // ---- MAIN IMAGES ----
@@ -286,7 +344,6 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 });
-
 /* -------------------------------
    ADD RATING TO PRODUCT
    (used by product page frontend)
