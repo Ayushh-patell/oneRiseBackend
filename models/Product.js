@@ -11,6 +11,7 @@ const attributeSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     options: { type: [String], required: true },
+    price: { type: Number, default:0 },
   },
   { _id: false }
 );
