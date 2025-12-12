@@ -228,7 +228,7 @@ router.put("/update/:id", isAdmin, upload, async (req, res) => {
     }));
 
     // Parse attributes JSON
-    // expected shape: [{ name, options: [String] }]
+    // expected shape: [{ name, options: [String], price }]
     let parsedAttributes = [];
     if (data.attributes) {
       try {
