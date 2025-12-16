@@ -139,17 +139,9 @@ router.get("/", async (req, res) => {
 
     const filter = {};
 
-    // ✅ category filter (fix "Kitchen+Sink" / spaces)
-    // Express query parsing already turns + into space in most cases,
-    // but this makes it bulletproof for mixed encodings.
+    // category filter
     if (category) {
-      const decoded = decodeURIComponent(String(category)).replace(/\+/g, " ").trim();
-
-      // Exact (case-insensitive) match:
-      filter.category = new RegExp(`^${decoded.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-
-      // If you want "contains" match instead, use:
-      // filter.category = new RegExp(decoded.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.category = category;
     }
 
     // price filter (checks both product.price and colorOptions.price)
@@ -168,7 +160,9 @@ router.get("/", async (req, res) => {
       max = temp;
     }
 
-    if (min !== null || max !== null) {
+    const hasPriceFilter = min !== null || max !== null;
+
+    if (hasPriceFilter) {
       const priceRange = {};
       if (min !== null) priceRange.$gte = min;
       if (max !== null) priceRange.$lte = max;
@@ -179,10 +173,46 @@ router.get("/", async (req, res) => {
       ];
     }
 
-    const [products, total] = await Promise.all([
-      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNumber),
+    const [productsRaw, total] = await Promise.all([
+      Product.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber)
+        .lean(), // ✅ important so we can safely override fields
       Product.countDocuments(filter),
     ]);
+
+    // ✅ If min/max applied, override base "price" to the matching price
+    const products = hasPriceFilter
+      ? productsRaw.map((p) => {
+          const candidates = [];
+
+          if (typeof p.price === "number") candidates.push(p.price);
+
+          if (Array.isArray(p.colorOptions)) {
+            for (const opt of p.colorOptions) {
+              if (opt && typeof opt.price === "number") candidates.push(opt.price);
+            }
+          }
+
+          // keep only prices that satisfy the active bounds
+          const matching = candidates.filter((val) => {
+            if (min !== null && val < min) return false;
+            if (max !== null && val > max) return false;
+            return true;
+          });
+
+          // product matched the DB filter, so matching should exist,
+          // but keep a safe fallback
+          const displayPrice =
+            matching.length > 0 ? Math.min(...matching) : p.price;
+
+          return {
+            ...p,
+            price: displayPrice, // ✅ this is what your UI already shows
+          };
+        })
+      : productsRaw;
 
     res.json({
       total,
@@ -196,6 +226,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server error fetching products" });
   }
 });
+
 
 
 /* -------------------------------
