@@ -489,4 +489,83 @@ router.post("/confirm-order", async (req, res) => {
   }
 });
 
+
+
+// ===========================
+// TEST EMAIL API (SMTP)
+// ===========================
+// POST /api/checkout/test-email
+// body: { to?: "someone@example.com" }
+router.post("/test-email", async (req, res) => {
+  try {
+    const brandName = process.env.BRAND_NAME || "Your Store";
+
+    // where to send the test email
+    const to =
+      (req.body?.to && String(req.body.to).trim()) ||
+      process.env.CLIENT_EMAIL ||
+      process.env.SMTP_USER;
+
+    if (!to) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing recipient. Provide { to } or set CLIENT_EMAIL/SMTP_USER",
+      });
+    }
+
+    // 1) Verify SMTP connectivity + auth (very useful for debugging)
+    try {
+      await transporter.verify();
+    } catch (verifyErr) {
+      return res.status(500).json({
+        ok: false,
+        step: "transporter.verify",
+        message: verifyErr?.message || "SMTP verify failed",
+        code: verifyErr?.code,
+        response: verifyErr?.response,
+        command: verifyErr?.command,
+      });
+    }
+
+    // 2) Send a real email
+    const now = new Date().toISOString();
+
+    const info = await transporter.sendMail({
+      from: `"${brandName}" <${process.env.SMTP_USER}>`,
+      to,
+      subject: `SMTP Test - ${brandName} - ${now}`,
+      text: `Hello!\n\nThis is a test email from ${brandName} (${process.env.SMTP_USER}).\nTime: ${now}\n`,
+      html: `
+        <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; font-size:14px; color:#111;">
+          <h2 style="margin:0 0 8px;">SMTP Test ✅</h2>
+          <p style="margin:0 0 6px;">This is a test email from <b>${brandName}</b>.</p>
+          <p style="margin:0 0 6px;"><b>From:</b> ${process.env.SMTP_USER}</p>
+          <p style="margin:0 0 6px;"><b>To:</b> ${to}</p>
+          <p style="margin:0 0 6px;"><b>Time:</b> ${now}</p>
+        </div>
+      `,
+    });
+
+    return res.json({
+      ok: true,
+      to,
+      from: process.env.SMTP_USER,
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      step: "sendMail",
+      message: err?.message || "Failed to send test email",
+      code: err?.code,
+      response: err?.response,
+      command: err?.command,
+    });
+  }
+});
+
+
 export default router;
